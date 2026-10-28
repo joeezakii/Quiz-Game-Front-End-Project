@@ -1,0 +1,9 @@
+asgiref==3.13.0
+django==6.1.2
+django-cors-headers==4.9.0
+djangorestframework==3.18.3
+gunicorn==26.2.0
+-e file:///C:/Users/youss/Front%20End%20Projects/bootstrap-5.3.8-dist/Quiz-App/quiz_project
+sqlparse==0.6.0
+tzdata==2026.6
+whitenoise==6.12.0
