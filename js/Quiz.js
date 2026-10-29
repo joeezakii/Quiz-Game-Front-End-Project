@@ -166,11 +166,27 @@ function nextQuestion() {
 
 // retrieve question data
 async function retrieveData() {
+    // Redirect back to start page if no category/difficulty was selected
+    if (!cat || !diff) {
+        alert('Please select a category and difficulty first!');
+        window.location.href = './startgame.html';
+        return [];
+    }
+
     console.log('Category name: ', cat);
     
-    const response = await fetch(`../data/${cat}.json`);
-    const Data     = await response.json();
-    return Data.filter(item => (item.category === cat && item.difficulty === diff) || (item.category === 'init' && item.difficulty === 'init') );
+    try {
+        // Fix path: use relative ./data/ instead of ../data/
+        const response = await fetch(`./data/${cat}.json`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const Data = await response.json();
+        return Data.filter(item => (item.category === cat && item.difficulty === diff) || (item.category === 'init' && item.difficulty === 'init'));
+    } catch (error) {
+        console.error('Error fetching question data:', error);
+        alert('Failed to load questions. Returning to setup.');
+        window.location.href = './startgame.html';
+        return [];
+    }
 }
 // ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
 
