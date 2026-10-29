@@ -1,108 +1,97 @@
-// get category and difficulty
-const cat           = localStorage.getItem('category');
-const diff          = localStorage.getItem('difficulty');
-let correctAnswers = 0;
-let numberOfQ;      // will retrieve from data attribute
-let totalSeconds;   // will retrieve from data attribute
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
+const API_BASE_URL = 'https://joeezakyy.pythonanywhere.com/api';
 
-// get sections
+// Retrieve category and difficulty from localStorage
+const cat  = localStorage.getItem('category');
+const diff = localStorage.getItem('difficulty');
+
+let correctAnswers   = 0;
+let numberOfQ        = 5;
+let totalSeconds     = 10;
+let data             = null;
+let randomQuestion   = null;
+let qeustionsId      = [];
+let progressInterval = null;
+
+// DOM Elements - Declared at top to prevent Temporal Dead Zone (TDZ) Reference Errors
 const durationContainer      = document.querySelector('.Duration-Container');
 const questionCountContainer = document.querySelector('.QuestionCount-Container');
 const quizContainer          = document.querySelector('.Quiz-Container');
-const dashBoardContainer     = document.querySelector('.Dashboard-Container')
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
+const dashBoardContainer     = document.querySelector('.Dashboard-Container');
 
-// duration section buttons functionality
 const duration_btns = document.querySelectorAll('.Duration-Container button');
-duration_btns.forEach(btn => {
-    btn.addEventListener('click', _ => {
-        totalSeconds = Number(btn.dataset.duration);
-        durationContainer.classList.toggle('d-none');
-        questionCountContainer.classList.toggle('d-none');
+const numQ_btns     = document.querySelectorAll('.QuestionCount-Container button');
 
-        console.log('seconds = ', totalSeconds);
-    })
-})
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
-
-// Number of Questions buttons functionality
-const numQ_btns = document.querySelectorAll('.QuestionCount-Container button');
-numQ_btns.forEach(btn => {
-    btn.addEventListener('click', _ => {
-        numberOfQ = Number(btn.dataset.count);
-        questionCountContainer.classList.toggle('d-none');
-        quizContainer.classList.toggle('d-none');
-        nextQuestion();
-
-        console.log('# Questions = ', numberOfQ);
-    })
-})
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
-
-// get Quiz card element DOM
 const Question      = document.querySelector('.Question');
 const options       = document.querySelectorAll('.option');
+const sidebar       = document.querySelector('.image-sidebar');
 const sidebarImg    = document.querySelector('.Img img');
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
+const toggleBtn     = document.getElementById('sidebarToggle');
 
-// data from init.json
-let data = null;
-let randomQuestion;
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
+const progressBar       = document.querySelector('.progress-bar');
+const progressContainer = document.querySelector('.progress');
 
-// option button clicked functionality
+// Disable / Enable Option Buttons
+function setButtonsDisabled(isDisabled) {
+    options.forEach(btn => {
+        btn.disabled = isDisabled;
+    });
+}
+
+function resetButtonStatus() {
+    options.forEach(btn => {
+        btn.classList.remove('btn-danger', 'btn-success', 'disabled');
+        btn.disabled = false;
+    });
+}
+
+// Step 1: Duration Selection
+duration_btns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        totalSeconds = Number(btn.dataset.duration) || 10;
+        durationContainer.classList.add('d-none');
+        questionCountContainer.classList.remove('d-none');
+    });
+});
+
+// Step 2: Question Count Selection
+numQ_btns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        numberOfQ = Number(btn.dataset.count) || 5;
+        questionCountContainer.classList.add('d-none');
+        quizContainer.classList.remove('d-none');
+        nextQuestion();
+    });
+});
+
+// Step 3: Option Click Listener
 options.forEach(option => {
     option.addEventListener('click', () => {
-        // clear Progress bar
         updateProgressBar(0, true);
-        // ـــــــــــــــــــــــــــــــــــــــــــــــــــــ
 
         const optionValue = option.dataset.value;
         const correctAnswerIndex = randomQuestion.correctAnswer;
 
-        // check if buttons disabled then return, otherwise disable buttons
-        if (option.disable)
-            return;
         setButtonsDisabled(true);
-        // ـــــــــــــــــــــــــــــــــــــــــــــــــــــ
 
-        // Show answer correctness
         if (optionValue == correctAnswerIndex) {
             option.classList.add('btn-success');
             correctAnswers++;
         } else {
             option.classList.add('btn-danger');
-            options[correctAnswerIndex - 1].classList.add('btn-success');
+            if (options[correctAnswerIndex - 1]) {
+                options[correctAnswerIndex - 1].classList.add('btn-success');
+            }
         }
-        // ـــــــــــــــــــــــــــــــــــــــــــــــــــــ
-        
-        // Show next Question
-        // console.log(new Date().toLocaleTimeString());
-        // randomQuestion = getRandomQuestion();
+
         setTimeout(nextQuestion, 2000);
-        // ـــــــــــــــــــــــــــــــــــــــــــــــــــــ
-    })
-})
+    });
+});
 
-// disable and enable buttons after click
-function setButtonsDisabled(isDisabled) {
-    options.forEach(btn => btn.disable = isDisabled);
-}
-
-// button init state
-function resetButtonStatus() {
-    options.forEach(btn => btn.classList.remove('btn-danger', 'btn-success', 'disabled'))
-}
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
-
-// select Random Question from data
-let qeustionsId = [];
 function getRandomQuestion() {
+    if (!data || data.length === 0) return null;
+
     const availableQuestions = data.filter(item => !qeustionsId.includes(item.id));
 
-    // console.log(qeustionsId);
-    console.log(qeustionsId);
     if (availableQuestions.length === 0 || qeustionsId.length >= numberOfQ) {
         return null;
     }
@@ -113,146 +102,99 @@ function getRandomQuestion() {
     qeustionsId.push(selectedQuestion.id);
     return selectedQuestion;
 }
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
 
-// set card element content based on Random Question
 function setCardElements() {
     randomQuestion = getRandomQuestion();
 
     if (randomQuestion === null) {
-        // alert("finish Questions");
         renderDashBoard();
         return null;
     }
 
-    // console.log(randomQuestion.id);
-    
-
     Question.textContent = randomQuestion.question;
     options.forEach((option, index) => {
-        option.textContent = randomQuestion.options[index];
+        if (randomQuestion.options && randomQuestion.options[index] !== undefined) {
+            option.textContent = randomQuestion.options[index];
+        }
     });
 
-
-    if (randomQuestion.image == '') {
-        sidebar.classList.add('d-none');
-    } else {
-        sidebar.classList.remove('d-none');
-        sidebarImg.src = randomQuestion.image;
+    if (sidebar) {
+        if (!randomQuestion.image || randomQuestion.image === '') {
+            sidebar.classList.add('d-none');
+        } else {
+            sidebar.classList.remove('d-none');
+            if (sidebarImg) sidebarImg.src = randomQuestion.image;
+        }
     }
-}
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
 
-// Show next Question
+    return true;
+}
+
 function nextQuestion() {
-    // set card element content based on Random Question
-    if (setCardElements() === null)
-        return;
-    // ـــــــــــــــــــــــــــــــــــــــــــــــــــــ
+    if (setCardElements() === null) return;
 
-    // start progress bar
     startLoopingProgress();
-    // ـــــــــــــــــــــــــــــــــــــــــــــــــــــ
-
-    // enable buttons 
     setButtonsDisabled(false);
-    // ـــــــــــــــــــــــــــــــــــــــــــــــــــــ
-
-    // reset button state
     resetButtonStatus();
-    // ـــــــــــــــــــــــــــــــــــــــــــــــــــــ
 }
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
 
-// retrieve question data
 async function retrieveData() {
-    // Redirect back to start page if no category/difficulty was selected
     if (!cat || !diff) {
         alert('Please select a category and difficulty first!');
         window.location.href = './startgame.html';
         return [];
     }
 
-    console.log('Category name: ', cat);
-    
     try {
-        // Fix path: use relative ./data/ instead of ../data/
         const response = await fetch(`./data/${cat}.json`);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const Data = await response.json();
-        return Data.filter(item => (item.category === cat && item.difficulty === diff) || (item.category === 'init' && item.difficulty === 'init'));
+
+        // Case-insensitive filtering
+        const filtered = Data.filter(item => {
+            const itemDiff = item.difficulty ? item.difficulty.toLowerCase() : '';
+            const itemCat  = item.category ? item.category.toLowerCase() : '';
+            
+            const diffMatch = !itemDiff || itemDiff === diff.toLowerCase() || itemDiff === 'init';
+            const catMatch  = !itemCat || itemCat === cat.toLowerCase() || itemCat === 'init';
+
+            return diffMatch && catMatch;
+        });
+
+        // Fallback: Use full file data if filtered result is empty
+        return filtered.length > 0 ? filtered : Data;
     } catch (error) {
         console.error('Error fetching question data:', error);
-        alert('Failed to load questions. Returning to setup.');
+        alert('Failed to load question dataset. Returning to setup.');
         window.location.href = './startgame.html';
         return [];
     }
 }
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
 
-// set Theme from local storage
+// Theme handling
 function setTheme(theme) {
     const themeIcon = document.getElementById('theme-icon');
-
     document.documentElement.setAttribute('data-bs-theme', theme);
     localStorage.setItem('theme', theme);
 
-    if (theme === 'dark') {
-        themeIcon.className = 'bi bi-sun-fill fs-5 text-warning';
-    } else {
-        themeIcon.className = 'bi bi-moon-stars-fill fs-5 text-dark';
+    if (themeIcon) {
+        if (theme === 'dark') {
+            themeIcon.className = 'bi bi-sun-fill fs-5 text-warning';
+        } else {
+            themeIcon.className = 'bi bi-moon-stars-fill fs-5 text-dark';
+        }
     }
 }
 
-// toggle theme
-document.getElementById('theme-toggle').addEventListener('click', () => {
-    const currentTheme = document.documentElement.getAttribute('data-bs-theme');
-    setTheme(currentTheme === 'dark' ? 'light' : 'dark');
-});
+const themeToggle = document.getElementById('theme-toggle');
+if (themeToggle) {
+    themeToggle.addEventListener('click', () => {
+        const currentTheme = document.documentElement.getAttribute('data-bs-theme');
+        setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+    });
+}
 
-// game setup functionality
-document.addEventListener('DOMContentLoaded', async () => {
-    window.scrollTo(0, 0);
-
-    // set theme from local storage
-    setTheme(localStorage.getItem('theme'));
-    // ـــــــــــــــــــــــــــــــــــــــــــــــــــــ
-
-    // retrieve question data from init.json
-    data = await retrieveData();
-    console.log('Data form json: ', data);
-    // ـــــــــــــــــــــــــــــــــــــــــــــــــــــ
-
-    // Show next Question
-    if (!quizContainer.classList.contains('d-none'))
-        nextQuestion();
-    // ـــــــــــــــــــــــــــــــــــــــــــــــــــــ
-});
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
-
-// Sidebar toggle functionality
-const toggleBtn = document.getElementById('sidebarToggle');
-const sidebar   = document.querySelector('.image-sidebar');
-
-toggleBtn.addEventListener('click', () => {
-    sidebar.classList.toggle('collapsed');
-});
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
-
-// back to setup page functionality
-document.querySelector('#backSetup').addEventListener('click', _ => {
-    const theme = localStorage.getItem('theme');
-    localStorage.clear();
-    localStorage.setItem('theme', theme);
-    window.location.href = './index.html';
-});
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
-
-// counter progress bar looping functionality
-const progressBar       = document.querySelector('.progress-bar');
-const progressContainer = document.querySelector('.progress');
-let   progressInterval  = null;
-
+// Timer Handling
 const updateProgressBar = (seconds, stop = false) => {
     if (stop) {
         clearInterval(progressInterval);
@@ -269,42 +211,58 @@ const updateProgressBar = (seconds, stop = false) => {
 
     if (seconds >= totalSeconds) {
         clearInterval(progressInterval);
-        progressBar.style.setProperty('background-color', '#dc3545', 'important');
-        progressBar.classList.add('progress-bar-animated');
+        if (progressBar) {
+            progressBar.style.setProperty('background-color', '#dc3545', 'important');
+            progressBar.classList.add('progress-bar-animated');
+        }
         setButtonsDisabled(true);
 
-        // Show correct answer and go to next Question
-        options[randomQuestion.correctAnswer - 1].classList.add('btn-success');
-        // randomQuestion = ();
+        if (randomQuestion && options[randomQuestion.correctAnswer - 1]) {
+            options[randomQuestion.correctAnswer - 1].classList.add('btn-success');
+        }
         setTimeout(nextQuestion, 2000);
-
-        return;
     }
-}
+};
 
 function startLoopingProgress() {
-    progressBar.style.removeProperty('background-color');
-    // progressBar.classList.remove('d-none');
-
+    if (progressBar) progressBar.style.removeProperty('background-color');
     if (progressInterval) clearInterval(progressInterval);
 
     let progressValue = 0;
-    progressBar.style.width = `${(progressValue / totalSeconds) * 100}%`;
-    progressBar.textContent = `${progressValue} s`;
+    if (progressBar) {
+        progressBar.style.width = `0%`;
+        progressBar.textContent = `0 s`;
+    }
 
     progressInterval = setInterval(() => {
         updateProgressBar(++progressValue);
     }, 1000);
 }
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
 
-// Dash board functionality
-function renderDashBoard() {
+// Sidebar toggle handler
+if (toggleBtn && sidebar) {
+    toggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('collapsed');
+    });
+}
+
+// Back to setup button
+const backSetupBtn = document.querySelector('#backSetup');
+if (backSetupBtn) {
+    backSetupBtn.addEventListener('click', () => {
+        const theme = localStorage.getItem('theme');
+        localStorage.clear();
+        localStorage.setItem('theme', theme);
+        window.location.href = './index.html';
+    });
+}
+
+// Dashboard results & Leaderboard API posting
+async function renderDashBoard() {
     updateProgressBar(0, true);
-    // progressBar.classList.add('d-none');
 
-    quizContainer.classList.toggle('d-none');
-    dashBoardContainer.classList.toggle('d-none');
+    quizContainer.classList.add('d-none');
+    dashBoardContainer.classList.remove('d-none');
 
     document.getElementById('stat-total-questions').textContent = numberOfQ;
     document.getElementById('stat-time-per-question').textContent = `${totalSeconds}s`;
@@ -312,11 +270,41 @@ function renderDashBoard() {
 
     const percentage = Math.round((correctAnswers / numberOfQ) * 100);
     document.getElementById('stat-percentage').textContent = `${percentage}%`;
-}
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
 
-// restart game functionality
-document.querySelector('#restart-quiz').addEventListener('click', () => {
-    window.location.reload();
+    const username = localStorage.getItem('quizUsername');
+    if (username) {
+        try {
+            await fetch(`${API_BASE_URL}/leaderboard/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: username,
+                    category: cat,
+                    difficulty: diff,
+                    score: correctAnswers,
+                    total_questions: numberOfQ,
+                    percentage: percentage
+                })
+            });
+        } catch (err) {
+            console.warn('Failed to post score to leaderboard API:', err);
+        }
+    }
+}
+
+// Restart quiz button
+const restartBtn = document.querySelector('#restart-quiz');
+if (restartBtn) {
+    restartBtn.addEventListener('click', () => {
+        window.location.reload();
+    });
+}
+
+// Page Load Initialization
+document.addEventListener('DOMContentLoaded', async () => {
+    window.scrollTo(0, 0);
+    setTheme(localStorage.getItem('theme') || 'light');
+
+    data = await retrieveData();
+    console.log('Loaded JSON Question Data:', data);
 });
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
