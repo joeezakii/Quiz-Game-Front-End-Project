@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const API_BASE_URL = 'http://127.0.0.1:8000/api';
+   const API_BASE_URL = 'https://joeezakyy.pythonanywhere.com/api';
 
     const avatars = [
          'https://api.dicebear.com/10.x/voxel-art/svg?seed=Sophie',
