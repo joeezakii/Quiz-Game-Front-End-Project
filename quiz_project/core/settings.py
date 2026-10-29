@@ -28,7 +28,11 @@ SECRET_KEY = 'django-insecure-s^n-3v$io97jo5t*(zjn(pd86nm($4dp1q658rl95e0eh=5+o&
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    'joeezakyy.pythonanywhere.com',
+    'localhost',
+    '127.0.0.1',
+]
 
 
 # Application definition
@@ -58,6 +62,7 @@ MIDDLEWARE = [
 ]
 
 CORS_ALLOWED_ORIGINS = [
+    "https://joeezakii.github.io",
     "http://127.0.0.1:5500",
     "http://localhost:5500",
 ]
