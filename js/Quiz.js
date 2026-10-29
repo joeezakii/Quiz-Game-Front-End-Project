@@ -1,18 +1,18 @@
 const API_BASE_URL = 'https://joeezakyy.pythonanywhere.com/api';
 
-// Retrieve category and difficulty from localStorage
-const cat  = localStorage.getItem('category');
-const diff = localStorage.getItem('difficulty');
+let cat  = localStorage.getItem('category');
+let diff = localStorage.getItem('difficulty');
 
 let correctAnswers   = 0;
 let numberOfQ        = 5;
 let totalSeconds     = 10;
 let data             = null;
+let dataLoadingPromise = null;
 let randomQuestion   = null;
 let qeustionsId      = [];
 let progressInterval = null;
 
-// DOM Elements - Declared at top to prevent Temporal Dead Zone (TDZ) Reference Errors
+// DOM Elements
 const durationContainer      = document.querySelector('.Duration-Container');
 const questionCountContainer = document.querySelector('.QuestionCount-Container');
 const quizContainer          = document.querySelector('.Quiz-Container');
@@ -53,10 +53,22 @@ duration_btns.forEach(btn => {
     });
 });
 
-// Step 2: Question Count Selection
+// Step 2: Question Count Selection (Awaits async JSON data load)
 numQ_btns.forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
         numberOfQ = Number(btn.dataset.count) || 5;
+
+        // Guarantee JSON data is fully loaded before rendering question card
+        if (dataLoadingPromise) {
+            await dataLoadingPromise;
+        }
+
+        if (!data || data.length === 0) {
+            alert("No questions found for this category and difficulty.");
+            window.location.href = './startgame.html';
+            return;
+        }
+
         questionCountContainer.classList.add('d-none');
         quizContainer.classList.remove('d-none');
         nextQuestion();
@@ -111,19 +123,33 @@ function setCardElements() {
         return null;
     }
 
-    Question.textContent = randomQuestion.question;
+    // Question Text
+    Question.textContent = randomQuestion.question || randomQuestion.title || "Question";
+
+    // Options
+    const questionOptions = randomQuestion.options || randomQuestion.answers || [];
     options.forEach((option, index) => {
-        if (randomQuestion.options && randomQuestion.options[index] !== undefined) {
-            option.textContent = randomQuestion.options[index];
+        if (questionOptions[index] !== undefined) {
+            option.textContent = questionOptions[index];
+            option.style.display = 'flex';
+        } else {
+            option.style.display = 'none';
         }
     });
 
+    // Image & Sidebar
     if (sidebar) {
-        if (!randomQuestion.image || randomQuestion.image === '') {
+        const imgSrc = randomQuestion.image || randomQuestion.img || '';
+        if (!imgSrc) {
             sidebar.classList.add('d-none');
         } else {
             sidebar.classList.remove('d-none');
-            if (sidebarImg) sidebarImg.src = randomQuestion.image;
+            if (sidebarImg) {
+                // Sanitize relative image paths for GitHub Pages
+                sidebarImg.src = (imgSrc.startsWith('http') || imgSrc.startsWith('/') || imgSrc.startsWith('./')) 
+                    ? imgSrc 
+                    : `./${imgSrc}`;
+            }
         }
     }
 
@@ -139,6 +165,9 @@ function nextQuestion() {
 }
 
 async function retrieveData() {
+    cat  = localStorage.getItem('category');
+    diff = localStorage.getItem('difficulty');
+
     if (!cat || !diff) {
         alert('Please select a category and difficulty first!');
         window.location.href = './startgame.html';
@@ -148,12 +177,22 @@ async function retrieveData() {
     try {
         const response = await fetch(`./data/${cat}.json`);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const Data = await response.json();
+        let rawData = await response.json();
+
+        // Support array [...] or object { questions: [...] } formats
+        const Data = Array.isArray(rawData) ? rawData : (rawData.questions || rawData.data || []);
+
+        // Ensure every question has a valid unique ID
+        Data.forEach((item, index) => {
+            if (item.id === undefined || item.id === null) {
+                item.id = index + 1;
+            }
+        });
 
         // Case-insensitive filtering
         const filtered = Data.filter(item => {
-            const itemDiff = item.difficulty ? item.difficulty.toLowerCase() : '';
-            const itemCat  = item.category ? item.category.toLowerCase() : '';
+            const itemDiff = item.difficulty ? String(item.difficulty).toLowerCase() : '';
+            const itemCat  = item.category ? String(item.category).toLowerCase() : '';
             
             const diffMatch = !itemDiff || itemDiff === diff.toLowerCase() || itemDiff === 'init';
             const catMatch  = !itemCat || itemCat === cat.toLowerCase() || itemCat === 'init';
@@ -161,7 +200,6 @@ async function retrieveData() {
             return diffMatch && catMatch;
         });
 
-        // Fallback: Use full file data if filtered result is empty
         return filtered.length > 0 ? filtered : Data;
     } catch (error) {
         console.error('Error fetching question data:', error);
@@ -246,13 +284,12 @@ if (toggleBtn && sidebar) {
     });
 }
 
-// Back to setup button
+// Back to setup button (Preserves username and avatar)
 const backSetupBtn = document.querySelector('#backSetup');
 if (backSetupBtn) {
     backSetupBtn.addEventListener('click', () => {
-        const theme = localStorage.getItem('theme');
-        localStorage.clear();
-        localStorage.setItem('theme', theme);
+        localStorage.removeItem('category');
+        localStorage.removeItem('difficulty');
         window.location.href = './index.html';
     });
 }
@@ -279,8 +316,8 @@ async function renderDashBoard() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     username: username,
-                    category: cat,
-                    difficulty: diff,
+                    category: cat || 'general',
+                    difficulty: diff || 'medium',
                     score: correctAnswers,
                     total_questions: numberOfQ,
                     percentage: percentage
@@ -301,10 +338,13 @@ if (restartBtn) {
 }
 
 // Page Load Initialization
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
     window.scrollTo(0, 0);
     setTheme(localStorage.getItem('theme') || 'light');
 
-    data = await retrieveData();
-    console.log('Loaded JSON Question Data:', data);
+    // Store fetch Promise to await when user picks question count
+    dataLoadingPromise = retrieveData().then(res => {
+        data = res;
+        console.log('Loaded JSON Question Data:', data);
+    });
 });
